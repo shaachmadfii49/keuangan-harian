@@ -48,7 +48,6 @@
     overflow-x: hidden;
   }
 
-  /* Efek Blob Background */
   body::before, body::after {
     content: '';
     position: fixed;
@@ -616,6 +615,7 @@
   .tx-meta {
     font-size: 11.5px; color: var(--muted);
     margin-top: 3px; font-weight: 500;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
   }
 
   .tx-amount {
@@ -696,31 +696,18 @@
      OPTIMASI PERFORMA UNTUK HP (MOBILE)
      ========================================== */
   @media (max-width: 768px) {
-    /* 1. Matikan efek kaca (blur) di HP, ganti jadi warna putih solid */
     .card, .summary, .auth-card, input, select, .type-toggle, .filters, .btn-ghost, .btn-mini {
       backdrop-filter: none !important;
       -webkit-backdrop-filter: none !important;
       background: #ffffff !important;
     }
-
-    /* 2. Matikan animasi background yang bergerak (hemat baterai & RAM) */
     body::before, body::after {
       animation: none !important;
       filter: blur(40px) !important;
       opacity: 0.4 !important;
     }
-
-    /* 3. Matikan animasi kilau di progress bar */
-    .progress-fill::after {
-      animation: none !important;
-    }
-
-    /* 4. Sederhanakan bayangan kartu agar tidak berat saat di-scroll */
-    .card, .summary {
-      box-shadow: 0 2px 10px rgba(0,0,0,0.05) !important;
-    }
-    
-    /* 5. Matikan efek hover yang tidak berguna di layar sentuh */
+    .progress-fill::after { animation: none !important; }
+    .card, .summary { box-shadow: 0 2px 10px rgba(0,0,0,0.05) !important; }
     .tx:hover .tx-icon { transform: none !important; }
     .btn-submit:hover { transform: none !important; }
   }
@@ -903,9 +890,23 @@
           <select id="category"></select>
         </div>
         <div class="field">
-          <label for="date">Tanggal</label>
-          <input type="date" id="date" required>
+          <label for="method">Metode</label>
+          <select id="method">
+            <option value="Cash">Cash / Tunai</option>
+            <option value="M-Banking">M-Banking</option>
+            <option value="Dana">Dana</option>
+            <option value="GoPay">GoPay</option>
+            <option value="OVO">OVO</option>
+            <option value="ShopeePay">ShopeePay</option>
+            <option value="SeaBank">SeaBank</option>
+            <option value="Lainnya">Lainnya</option>
+          </select>
         </div>
+      </div>
+      
+      <div class="field">
+        <label for="date">Tanggal</label>
+        <input type="date" id="date" required>
       </div>
 
       <button type="submit" class="btn-submit">Simpan Transaksi</button>
@@ -1026,6 +1027,7 @@ const sb = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
   const amountInput  = document.getElementById('amount');
   const noteInput    = document.getElementById('note');
   const categorySel  = document.getElementById('category');
+  const methodSel    = document.getElementById('method'); // Elemen Baru
   const dateInput    = document.getElementById('date');
   const typeToggle   = document.getElementById('typeToggle');
   const typeButtons  = document.querySelectorAll('.type-btn');
@@ -1226,12 +1228,15 @@ const sb = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
       listEl.innerHTML = list.map((t, i) => {
         const icon = ICONS[t.category] || (t.type === 'income' ? '💰' : '📌');
         const sign = t.type === 'income' ? '+' : '-';
+        // Menampilkan method, jika tidak ada (data lama) tampilkan "Cash"
+        const methodText = t.method ? escapeHtml(t.method) : 'Cash';
+        
         return `
           <div class="tx" style="animation-delay:${Math.min(i * 35, 240)}ms">
             <div class="tx-icon ${t.type}">${icon}</div>
             <div class="tx-info">
               <div class="tx-note">${escapeHtml(t.note)}</div>
-              <div class="tx-meta">${escapeHtml(t.category)} · ${formatDate(t.date)}</div>
+              <div class="tx-meta">${escapeHtml(t.category)} · ${methodText} · ${formatDate(t.date)}</div>
             </div>
             <div class="tx-amount ${t.type}">${sign}${rupiah(t.amount)}</div>
             <button class="tx-del" data-id="${escapeHtml(t.id)}" title="Hapus">✕</button>
@@ -1380,6 +1385,7 @@ const sb = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
           amount: t.amount,
           note: String(t.note || t.category || 'Tanpa keterangan').slice(0, 60),
           category: String(t.category || 'Lainnya'),
+          method: String(t.method || 'Cash'), // <-- Menangani import file lama
           date: t.date,
           createdAt: t.createdAt || Date.now()
         }));
@@ -1451,11 +1457,12 @@ const sb = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
     if (!amount || amount <= 0) { amountInput.focus(); return; }
 
     const category = categorySel.value;
+    const method = methodSel.value; // <-- Ambil nilai metode
     const note = noteInput.value.trim() || category;
 
     transactions.push({
       id: Date.now().toString(36) + Math.random().toString(36).slice(2, 7),
-      type: currentType, amount, note, category,
+      type: currentType, amount, note, category, method,
       date: dateInput.value || TODAY,
       createdAt: Date.now()
     });
